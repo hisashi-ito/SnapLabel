@@ -2,7 +2,7 @@
 
 軽量・高速な画像ラベリングツール
 <p align="center">
-<img src="docs/screenshot.png" width="700px">
+<img src="docs/display.png" width="700px">
 </p>
 
 
