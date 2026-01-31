@@ -18,7 +18,7 @@
 
 ```bash
 # リポジトリをクローン後、ディレクトリに移動
-cd claude_test
+cd SnapLabel
 
 # 画像を入れるディレクトリを作成
 mkdir -p data
