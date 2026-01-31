@@ -2,7 +2,6 @@
 
 軽量・高速な画像ラベリングツール
 
-![App Screenshot](docs/screenshot.png)
 
 ## 機能
 
