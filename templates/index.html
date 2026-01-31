@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SnapLabel</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>SnapLabel</h1>
+            <div class="stats" id="stats">
+                <span class="stat">Total: <strong id="stat-total">0</strong></span>
+                <span class="stat ok">OK: <strong id="stat-ok">0</strong></span>
+                <span class="stat ng">NG: <strong id="stat-ng">0</strong></span>
+                <span class="stat">Remaining: <strong id="stat-unlabeled">0</strong></span>
+            </div>
+        </header>
+
+        <div class="scan-section" id="scan-section">
+            <input type="text" id="directory-input" placeholder="Enter directory path (e.g., /path/to/images)">
+            <button id="scan-btn" onclick="scanDirectory()">Scan</button>
+            <button id="export-btn" onclick="exportCSV()">Export CSV</button>
+        </div>
+
+        <div class="main-content">
+            <div class="image-container" id="image-container">
+                <div class="no-image" id="no-image">
+                    <p>No images loaded</p>
+                    <p>Enter a directory path and click Scan</p>
+                </div>
+                <img id="current-image" style="display: none;" alt="Current image">
+                <img id="preload-image" style="display: none;" alt="Preload">
+            </div>
+
+            <div class="image-info" id="image-info" style="display: none;">
+                <span id="image-filename"></span>
+                <span id="image-counter"></span>
+                <span id="current-label"></span>
+            </div>
+
+            <div class="controls" id="controls" style="display: none;">
+                <button class="nav-btn" id="prev-btn" onclick="navigate('prev')" disabled>
+                    ← Prev
+                </button>
+                <button class="label-btn ok" id="ok-btn" onclick="setLabel('OK')">
+                    OK (O)
+                </button>
+                <button class="label-btn ng" id="ng-btn" onclick="setLabel('NG')">
+                    NG (N)
+                </button>
+                <button class="nav-btn" id="next-btn" onclick="navigate('next')" disabled>
+                    Next →
+                </button>
+            </div>
+        </div>
+
+        <div class="shortcuts">
+            <span>Shortcuts: <kbd>O</kbd> = OK, <kbd>N</kbd> = NG, <kbd>←</kbd> = Prev, <kbd>→</kbd> = Next</span>
+        </div>
+    </div>
+
+    <script>
+        let currentImage = null;
+
+        async function scanDirectory() {
+            const directory = document.getElementById('directory-input').value.trim();
+            if (!directory) {
+                alert('Please enter a directory path');
+                return;
+            }
+
+            const btn = document.getElementById('scan-btn');
+            btn.disabled = true;
+            btn.textContent = 'Scanning...';
+
+            try {
+                const response = await fetch('/scan', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ directory })
+                });
+
+                const data = await response.json();
+                if (!response.ok) {
+                    throw new Error(data.detail || 'Scan failed');
+                }
+
+                await loadCurrentImage();
+                await updateStats();
+            } catch (error) {
+                alert('Error: ' + error.message);
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Scan';
+            }
+        }
+
+        async function loadCurrentImage() {
+            try {
+                const response = await fetch('/images/current');
+                const data = await response.json();
+
+                if (!data.image) {
+                    showNoImage();
+                    return;
+                }
+
+                currentImage = data.image;
+                const img = document.getElementById('current-image');
+                img.src = `/images/${data.image.id}/file?t=${Date.now()}`;
+                img.style.display = 'block';
+                document.getElementById('no-image').style.display = 'none';
+                document.getElementById('image-info').style.display = 'flex';
+                document.getElementById('controls').style.display = 'flex';
+
+                document.getElementById('image-filename').textContent = data.image.filename;
+                document.getElementById('image-counter').textContent = `${data.index + 1} / ${data.total}`;
+
+                const labelEl = document.getElementById('current-label');
+                if (data.image.label) {
+                    labelEl.textContent = data.image.label;
+                    labelEl.className = data.image.label.toLowerCase();
+                } else {
+                    labelEl.textContent = 'Unlabeled';
+                    labelEl.className = 'unlabeled';
+                }
+
+                document.getElementById('prev-btn').disabled = !data.has_prev;
+                document.getElementById('next-btn').disabled = !data.has_next;
+
+                // Preload next image
+                if (data.has_next) {
+                    preloadNext();
+                }
+            } catch (error) {
+                console.error('Error loading image:', error);
+            }
+        }
+
+        async function preloadNext() {
+            try {
+                const response = await fetch('/images/current');
+                const data = await response.json();
+                if (data.has_next && data.image) {
+                    // Get next image id
+                    const nextResponse = await fetch('/images/next');
+                    const nextData = await nextResponse.json();
+                    if (nextData.image) {
+                        const preloadImg = document.getElementById('preload-image');
+                        preloadImg.src = `/images/${nextData.image.id}/file?t=${Date.now()}`;
+                        // Go back to current
+                        await fetch('/images/prev');
+                    }
+                }
+            } catch (error) {
+                // Silently fail preload
+            }
+        }
+
+        function showNoImage() {
+            document.getElementById('current-image').style.display = 'none';
+            document.getElementById('no-image').style.display = 'flex';
+            document.getElementById('image-info').style.display = 'none';
+            document.getElementById('controls').style.display = 'none';
+            currentImage = null;
+        }
+
+        async function setLabel(label) {
+            if (!currentImage) return;
+
+            try {
+                const response = await fetch(`/images/${currentImage.id}/label`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ label })
+                });
+
+                if (!response.ok) {
+                    throw new Error('Failed to set label');
+                }
+
+                // Auto-advance to next
+                await navigate('next');
+                await updateStats();
+            } catch (error) {
+                console.error('Error setting label:', error);
+            }
+        }
+
+        async function navigate(direction) {
+            try {
+                const response = await fetch(`/images/${direction}`);
+                await loadCurrentImage();
+            } catch (error) {
+                console.error('Error navigating:', error);
+            }
+        }
+
+        async function updateStats() {
+            try {
+                const response = await fetch('/stats');
+                const stats = await response.json();
+                document.getElementById('stat-total').textContent = stats.total;
+                document.getElementById('stat-ok').textContent = stats.ok;
+                document.getElementById('stat-ng').textContent = stats.ng;
+                document.getElementById('stat-unlabeled').textContent = stats.unlabeled;
+            } catch (error) {
+                console.error('Error updating stats:', error);
+            }
+        }
+
+        function exportCSV() {
+            window.location.href = '/export/csv';
+        }
+
+        // Keyboard shortcuts
+        document.addEventListener('keydown', (e) => {
+            // Ignore if typing in input
+            if (e.target.tagName === 'INPUT') return;
+
+            switch (e.key.toLowerCase()) {
+                case 'o':
+                    setLabel('OK');
+                    break;
+                case 'n':
+                    setLabel('NG');
+                    break;
+                case 'arrowleft':
+                    if (!document.getElementById('prev-btn').disabled) {
+                        navigate('prev');
+                    }
+                    break;
+                case 'arrowright':
+                    if (!document.getElementById('next-btn').disabled) {
+                        navigate('next');
+                    }
+                    break;
+            }
+        });
+
+        // Initial load
+        updateStats();
+    </script>
+</body>
+</html>
