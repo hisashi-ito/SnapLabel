@@ -30,6 +30,10 @@
                     <p>No images loaded</p>
                     <p>Enter a directory path and click Scan</p>
                 </div>
+                <div class="all-done" id="all-done" style="display: none;">
+                    <p>All images labeled!</p>
+                    <p>Click "Export CSV" to download results</p>
+                </div>
                 <img id="current-image" style="display: none;" alt="Current image">
                 <img id="preload-image" style="display: none;" alt="Preload">
             </div>
@@ -103,7 +107,11 @@
                 const data = await response.json();
 
                 if (!data.image) {
-                    showNoImage();
+                    if (data.all_done) {
+                        showAllDone();
+                    } else {
+                        showNoImage();
+                    }
                     return;
                 }
 
@@ -162,6 +170,16 @@
         function showNoImage() {
             document.getElementById('current-image').style.display = 'none';
             document.getElementById('no-image').style.display = 'flex';
+            document.getElementById('all-done').style.display = 'none';
+            document.getElementById('image-info').style.display = 'none';
+            document.getElementById('controls').style.display = 'none';
+            currentImage = null;
+        }
+
+        function showAllDone() {
+            document.getElementById('current-image').style.display = 'none';
+            document.getElementById('no-image').style.display = 'none';
+            document.getElementById('all-done').style.display = 'flex';
             document.getElementById('image-info').style.display = 'none';
             document.getElementById('controls').style.display = 'none';
             currentImage = null;
@@ -181,8 +199,8 @@
                     throw new Error('Failed to set label');
                 }
 
-                // Auto-advance to next
-                await navigate('next');
+                // Reload current (labeled image is now removed from list)
+                await loadCurrentImage();
                 await updateStats();
             } catch (error) {
                 console.error('Error setting label:', error);

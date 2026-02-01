@@ -41,10 +41,14 @@ async def index(request: Request):
 async def scan_directory(req: ScanRequest):
     global current_index
     try:
-        await db.clear_all()
         count = await db.scan_directory(req.directory)
         current_index = 0
-        return {"message": f"Scanned {count} images", "count": count}
+        stats = await db.get_stats()
+        return {
+            "message": f"Scanned {count} images ({stats['unlabeled']} unlabeled)",
+            "count": count,
+            "unlabeled": stats["unlabeled"]
+        }
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -52,9 +56,17 @@ async def scan_directory(req: ScanRequest):
 @app.get("/images/current")
 async def get_current_image():
     global current_index
-    images = await db.get_all_images()
+    images = await db.get_unlabeled_images()
+    stats = await db.get_stats()
+
     if not images:
-        return {"image": None, "index": 0, "total": 0}
+        return {
+            "image": None,
+            "index": 0,
+            "total": 0,
+            "all_done": stats["total"] > 0 and stats["unlabeled"] == 0,
+            "stats": stats
+        }
 
     if current_index >= len(images):
         current_index = len(images) - 1
@@ -67,14 +79,15 @@ async def get_current_image():
         "index": current_index,
         "total": len(images),
         "has_prev": current_index > 0,
-        "has_next": current_index < len(images) - 1
+        "has_next": current_index < len(images) - 1,
+        "stats": stats
     }
 
 
 @app.get("/images/next")
 async def next_image():
     global current_index
-    images = await db.get_all_images()
+    images = await db.get_unlabeled_images()
     if images and current_index < len(images) - 1:
         current_index += 1
     return await get_current_image()

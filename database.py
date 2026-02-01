@@ -58,6 +58,17 @@ async def get_all_images() -> list[dict]:
             return [dict(row) for row in rows]
 
 
+async def get_unlabeled_images() -> list[dict]:
+    """Get only unlabeled images ordered by id."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute(
+            "SELECT * FROM images WHERE label IS NULL ORDER BY id"
+        ) as cursor:
+            rows = await cursor.fetchall()
+            return [dict(row) for row in rows]
+
+
 async def get_image_by_id(image_id: int) -> Optional[dict]:
     """Get single image by id."""
     async with aiosqlite.connect(DB_PATH) as db:
