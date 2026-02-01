@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/logo.png" alt="SnapLabel" width="300px">
+  <img src="docs/logo.png" alt="SnapLabel" width="500px">
 </p>
 
 <p align="center">
