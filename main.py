@@ -34,7 +34,7 @@ class LabelRequest(BaseModel):
 
 @app.get("/", response_class=HTMLResponse)
 async def index(request: Request):
-    return templates.TemplateResponse("index.html", {"request": request})
+    return templates.TemplateResponse(request, "index.html")
 
 
 @app.post("/scan")
@@ -56,7 +56,7 @@ async def scan_directory(req: ScanRequest):
 @app.get("/images/current")
 async def get_current_image():
     global current_index
-    images = await db.get_unlabeled_images()
+    images = await db.get_all_images()
     stats = await db.get_stats()
 
     if not images:
@@ -64,7 +64,7 @@ async def get_current_image():
             "image": None,
             "index": 0,
             "total": 0,
-            "all_done": stats["total"] > 0 and stats["unlabeled"] == 0,
+            "all_done": False,
             "stats": stats
         }
 
@@ -84,10 +84,20 @@ async def get_current_image():
     }
 
 
+@app.get("/images/peek_next")
+async def peek_next_image():
+    global current_index
+    images = await db.get_all_images()
+    next_index = current_index + 1
+    if images and next_index < len(images):
+        return {"image": images[next_index]}
+    return {"image": None}
+
+
 @app.get("/images/next")
 async def next_image():
     global current_index
-    images = await db.get_unlabeled_images()
+    images = await db.get_all_images()
     if images and current_index < len(images) - 1:
         current_index += 1
     return await get_current_image()

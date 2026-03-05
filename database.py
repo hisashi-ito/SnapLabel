@@ -38,11 +38,12 @@ async def scan_directory(directory: str) -> int:
         for file_path in dir_path.iterdir():
             if file_path.is_file() and file_path.suffix.lower() in ALLOWED_EXTENSIONS:
                 try:
-                    await db.execute(
+                    cursor = await db.execute(
                         "INSERT OR IGNORE INTO images (path, filename) VALUES (?, ?)",
                         (str(file_path.absolute()), file_path.name)
                     )
-                    count += 1
+                    if cursor.rowcount > 0:
+                        count += 1
                 except Exception:
                     pass
         await db.commit()

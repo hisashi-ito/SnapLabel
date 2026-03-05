@@ -7,6 +7,8 @@
     <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
+    <div class="modal-overlay" id="modal-overlay" onclick="closeModal()"></div>
+
     <div class="container">
         <header>
             <h1>SnapLabel</h1>
@@ -34,7 +36,7 @@
                     <p>All images labeled!</p>
                     <p>Click "Export CSV" to download results</p>
                 </div>
-                <img id="current-image" style="display: none;" alt="Current image">
+                <img id="current-image" style="display: none;" alt="Current image" onclick="openModal()">
                 <img id="preload-image" style="display: none;" alt="Preload">
             </div>
 
@@ -149,18 +151,11 @@
 
         async function preloadNext() {
             try {
-                const response = await fetch('/images/current');
+                const response = await fetch('/images/peek_next');
                 const data = await response.json();
-                if (data.has_next && data.image) {
-                    // Get next image id
-                    const nextResponse = await fetch('/images/next');
-                    const nextData = await nextResponse.json();
-                    if (nextData.image) {
-                        const preloadImg = document.getElementById('preload-image');
-                        preloadImg.src = `/images/${nextData.image.id}/file?t=${Date.now()}`;
-                        // Go back to current
-                        await fetch('/images/prev');
-                    }
+                if (data.image) {
+                    const preloadImg = document.getElementById('preload-image');
+                    preloadImg.src = `/images/${data.image.id}/file?t=${Date.now()}`;
                 }
             } catch (error) {
                 // Silently fail preload
@@ -199,8 +194,8 @@
                     throw new Error('Failed to set label');
                 }
 
-                // Reload current (labeled image is now removed from list)
-                await loadCurrentImage();
+                // Advance to next image after labeling (stay if on last)
+                await navigate('next');
                 await updateStats();
             } catch (error) {
                 console.error('Error setting label:', error);
@@ -233,8 +228,25 @@
             window.location.href = '/export/csv';
         }
 
+        function openModal() {
+            const src = document.getElementById('current-image').src;
+            const overlay = document.getElementById('modal-overlay');
+            overlay.innerHTML = `<img src="${src}" alt="Enlarged image">`;
+            overlay.classList.add('open');
+        }
+
+        function closeModal() {
+            const overlay = document.getElementById('modal-overlay');
+            overlay.classList.remove('open');
+            overlay.innerHTML = '';
+        }
+
         // Keyboard shortcuts
         document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                closeModal();
+                return;
+            }
             // Ignore if typing in input
             if (e.target.tagName === 'INPUT') return;
 
